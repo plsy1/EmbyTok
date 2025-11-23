@@ -1,0 +1,5 @@
+{
+  "name": "EmbyTok",
+  "description": "A vertical video scrolling client for Emby servers, designed to provide a TikTok-like experience for your personal media collection.",
+  "requestFramePermissions": []
+}
