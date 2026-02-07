@@ -262,7 +262,12 @@ function App() {
     <div className="relative h-[100dvh] w-full bg-black overflow-hidden font-sans text-white">
       
       {/* TOP NAVIGATION BAR - Hidden in Auto Play Mode */}
-      <div className={`absolute top-0 left-0 right-0 z-40 h-16 bg-gradient-to-b from-black/90 to-transparent flex items-center justify-between px-4 pt-2 transition-opacity duration-300 ${isAutoPlay ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+      <div className={`absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/90 to-transparent flex items-center justify-between px-4 transition-opacity duration-300 ${isAutoPlay ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        style={{
+            paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)', 
+            height: 'calc(4rem + env(safe-area-inset-top))',
+        }}
+        >
         <button 
             onClick={() => setIsMenuOpen(true)}
             className="p-2 text-white/80 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full"
