@@ -1,15 +1,12 @@
-FROM node:20-alpine AS build
+FROM node:20-bullseye AS build
 
 WORKDIR /app
-
-ENV NODE_ENV=production
 
 COPY package*.json ./
 RUN npm install --frozen-lockfile
 
 COPY . .
 RUN npm run build
-
 
 FROM nginx:alpine
 
