@@ -34,7 +34,6 @@ export interface MediaSource {
   Protocol: string;
 }
 
-// Using a generic name but keeping compatibility with existing code structure
 export interface EmbyItem {
   Id: string;
   Name: string;
@@ -55,7 +54,11 @@ export interface EmbyItem {
     IsFavorite: boolean;
     PlaybackPositionTicks: number;
     PlayCount: number;
+    Played: boolean;
+    LastPlayedDate?: string;
   };
+  /** Internal key used by Plex to store the media part path */
+  _PlexKey?: string;
 }
 
 export type FeedType = 'latest' | 'random' | 'favorites';

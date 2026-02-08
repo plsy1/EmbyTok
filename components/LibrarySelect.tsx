@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { EmbyLibrary, OrientationMode } from '../types';
-import { X, Folder, Settings, LogOut, Eye, EyeOff, ChevronLeft, Server, User, Smartphone, Monitor } from 'lucide-react';
+import { X, Folder, Settings, LogOut, Eye, EyeOff, ChevronLeft, Server, User, Info, ExternalLink, Sparkles } from 'lucide-react';
 
 interface LibrarySelectProps {
   libraries: EmbyLibrary[];
@@ -21,7 +21,7 @@ interface LibrarySelectProps {
   onOrientationChange: (mode: OrientationMode) => void;
 }
 
-type MenuMode = 'list' | 'settings';
+type MenuMode = 'list' | 'settings' | 'about';
 
 const LibrarySelect: React.FC<LibrarySelectProps> = ({ 
     libraries, 
@@ -48,6 +48,14 @@ const LibrarySelect: React.FC<LibrarySelectProps> = ({
 
   if (!isOpen) return null;
 
+  const features = [
+    { title: "多级导航", desc: "支持电视剧集、季度、单集的深度浏览与逐级返回。" },
+    { title: "断点续播", desc: "同步播放进度，在网格视图中高亮提示上次观看位置。" },
+    { title: "智能过滤", desc: "可根据设备方向（横/竖）智能筛选最匹配的媒体内容。" },
+    { title: "纯净模式", desc: "新增自动连播功能，提供无干扰的沉浸式观看体验。" },
+    { title: "随机发现", desc: "随机推荐媒体库内容，解决你的“看什么”难题。" }
+  ];
+
   return (
     <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-start">
       <div className="w-3/4 max-w-sm h-full bg-zinc-900 border-r border-zinc-800 shadow-2xl flex flex-col animate-in slide-in-from-left duration-200">
@@ -61,7 +69,7 @@ const LibrarySelect: React.FC<LibrarySelectProps> = ({
                   <button onClick={() => setMode('list')} className="p-1 -ml-2 text-zinc-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded">
                       <ChevronLeft className="w-6 h-6" />
                   </button>
-                  <h2 className="text-white font-bold text-xl">设置</h2>
+                  <h2 className="text-white font-bold text-xl">{mode === 'settings' ? '设置' : '关于'}</h2>
               </div>
           )}
           
@@ -188,17 +196,73 @@ const LibrarySelect: React.FC<LibrarySelectProps> = ({
                   </div>
               </div>
           )}
+
+          {/* --- ABOUT MODE --- */}
+          {mode === 'about' && (
+              <div className="p-4 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                  <div className="text-center pb-4 border-b border-zinc-800">
+                      <div className="inline-flex p-3 bg-indigo-600 rounded-2xl mb-3 shadow-lg shadow-indigo-900/20">
+                          <Sparkles className="w-8 h-8 text-white" />
+                      </div>
+                      <h3 className="text-xl font-black text-white">EmbyTok</h3>
+                      <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mt-1">Version 1.1.0</p>
+                  </div>
+
+                  <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">最近更新特性</h4>
+                      <div className="space-y-3">
+                          {features.map((f, i) => (
+                              <div key={i} className="flex gap-3 bg-zinc-800/40 p-3 rounded-xl border border-zinc-800/50">
+                                  <div className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></div>
+                                  <div>
+                                      <div className="text-sm font-bold text-zinc-200">{f.title}</div>
+                                      <div className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{f.desc}</div>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+
+                  <div className="pt-4">
+                      <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">开源与反馈</h4>
+                      <a 
+                        href="https://gitee.com/miguyomi/embytok" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-4 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-all group active:scale-95"
+                      >
+                          <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-zinc-900 rounded-full flex items-center justify-center">
+                                  <ExternalLink className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />
+                              </div>
+                              <div className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">项目主页</div>
+                          </div>
+                          <span className="text-[10px] text-zinc-600 font-mono">gitee.com/miguyomi/embytok</span>
+                      </a>
+                  </div>
+
+                  <div className="text-center pt-8 text-zinc-600 text-[10px] uppercase font-bold tracking-tighter">
+                      Powered by React & Capacitor
+                  </div>
+              </div>
+          )}
         </div>
 
         {/* BOTTOM FOOTER (Only in List Mode) */}
         {mode === 'list' && (
-            <div className="p-4 border-t border-zinc-800 bg-zinc-900">
+            <div className="p-3 border-t border-zinc-800 bg-zinc-900 flex gap-2">
                 <button 
                     onClick={() => setMode('settings')}
-                    className="flex items-center gap-3 w-full p-3 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="flex-1 flex items-center justify-center gap-2 p-3 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-transparent hover:border-zinc-700"
                 >
                     <Settings className="w-5 h-5" />
-                    <span className="font-medium">设置</span>
+                    <span className="font-medium text-sm">设置</span>
+                </button>
+                <button 
+                    onClick={() => setMode('about')}
+                    className="flex items-center justify-center w-14 p-3 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-transparent hover:border-zinc-700"
+                >
+                    <Info className="w-5 h-5" />
                 </button>
             </div>
         )}

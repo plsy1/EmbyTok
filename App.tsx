@@ -5,10 +5,15 @@ import VideoGrid from "./components/VideoGrid";
 import LibrarySelect from "./components/LibrarySelect";
 import { ServerConfig, EmbyLibrary, EmbyItem, FeedType, OrientationMode } from "./types";
 import { ClientFactory } from "./services/clientFactory";
-import { Menu, LayoutGrid, Smartphone, Volume2, VolumeX, Maximize, Minimize } from "lucide-react";
+import { Menu, LayoutGrid, Smartphone, Volume2, VolumeX, Maximize, Minimize, ChevronLeft } from "lucide-react";
 
 type ViewMode = "feed" | "grid";
 const PAGE_SIZE = 15;
+
+interface NavItem {
+  id: string;
+  title: string;
+}
 
 function App() {
   const [config, setConfig] = useState<ServerConfig | null>(() => {
@@ -16,7 +21,6 @@ function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Client Instance
   const client = useMemo(() => {
     return config ? ClientFactory.create(config) : null;
   }, [config]);
@@ -24,106 +28,74 @@ function App() {
   const [libraries, setLibraries] = useState<EmbyLibrary[]>([]);
   const [selectedLib, setSelectedLib] = useState<EmbyLibrary | null>(null);
 
-  // Content State
+  // 内容状态
   const [videos, setVideos] = useState<EmbyItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [serverStartIndex, setServerStartIndex] = useState(0);
 
-  // UI State
+  // 导航层级状态 (使用栈结构支持多级回退)
+  const [navStack, setNavStack] = useState<NavItem[]>([]);
+
+  // UI 状态
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [feedType, setFeedType] = useState<FeedType>("latest");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isAutoPlay, setIsAutoPlay] = useState(false); // New Auto-play State
+  const [isAutoPlay, setIsAutoPlay] = useState(false);
 
-  // Initial Detection for TV/Landscape
-  const [isLandscape, setIsLandscape] = useState(() => (typeof window !== "undefined" ? window.innerWidth > window.innerHeight : false));
-
-  // Orientation Filter State
   const [orientationMode, setOrientationMode] = useState<OrientationMode>(() => {
     const saved = localStorage.getItem("embyOrientationMode");
-    if (saved) return saved as OrientationMode;
-    // Default behavior logic based on initial load
-    if (typeof window !== "undefined" && window.innerWidth > window.innerHeight) {
-      return "both";
-    }
-    return "vertical";
+    return (saved as OrientationMode) || "vertical";
   });
 
-  const [viewMode, setViewMode] = useState<ViewMode>(isLandscape ? "grid" : "feed");
+  const [viewMode, setViewMode] = useState<ViewMode>("feed");
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isMuted, setIsMuted] = useState(true);
 
-  // Settings State
   const [hiddenLibIds, setHiddenLibIds] = useState<Set<string>>(() => {
     const saved = localStorage.getItem("embyHiddenLibs");
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
 
-  // Audio State
-  const [isMuted, setIsMuted] = useState(true);
-
-  // Handle Orientation Change
+  // 监听全屏状态变化
   useEffect(() => {
-    const handleResize = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  // Handle Fullscreen Events
-  useEffect(() => {
-    const handleFullScreenChange = () => {
+    const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
-    document.addEventListener("fullscreenchange", handleFullScreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullScreenChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
   useEffect(() => {
-    if (config) {
-      localStorage.setItem("embyConfig", JSON.stringify(config));
-    } else {
-      localStorage.removeItem("embyConfig");
-    }
+    if (config) localStorage.setItem("embyConfig", JSON.stringify(config));
+    else localStorage.removeItem("embyConfig");
   }, [config]);
 
   useEffect(() => {
-    localStorage.setItem("embyHiddenLibs", JSON.stringify(Array.from(hiddenLibIds)));
-  }, [hiddenLibIds]);
-
-  useEffect(() => {
-    localStorage.setItem("embyOrientationMode", orientationMode);
-  }, [orientationMode]);
-
-  useEffect(() => {
-    if (client) {
-      fetchLibraries();
-    }
+    if (client) fetchLibraries();
   }, [client]);
 
   const fetchLibraries = async () => {
     if (!client) return;
     try {
-      const libs = await client.getLibraries();
-      setLibraries(libs);
-    } catch (e) {
-      console.error("Error fetching libs", e);
-    }
+      setLibraries(await client.getLibraries());
+    } catch (e) {}
   };
 
-  const getCurrentLibraryName = (lib: EmbyLibrary | null) => {
-    return lib ? lib.Name : "收藏";
-  };
+  const currentParentId = useMemo(() => {
+    return navStack.length > 0 ? navStack[navStack.length - 1].id : undefined;
+  }, [navStack]);
 
-  const loadVideos = async (reset: boolean = false) => {
-    if (!client) return;
-    if (loading) return;
+  const currentTitle = useMemo(() => {
+    return navStack.length > 0 ? navStack[navStack.length - 1].title : "";
+  }, [navStack]);
 
+  const loadVideos = async (reset: boolean = false, overrideParentId?: string) => {
+    if (!client || loading) return;
     setLoading(true);
-
-    const currentServerSkip = reset ? 0 : serverStartIndex;
+    const currentSkip = reset ? 0 : serverStartIndex;
+    const effectiveParentId = overrideParentId !== undefined ? overrideParentId : currentParentId;
 
     if (reset) {
       setVideos([]);
@@ -132,100 +104,69 @@ function App() {
       setServerStartIndex(0);
     }
 
-    const libName = getCurrentLibraryName(selectedLib);
-
-    // 1. Fetch Favorites IDs
-    if (reset) {
-      try {
-        const ids = await client.getFavorites(libName);
-        setFavoriteIds(ids);
-      } catch (e) {
-        console.error("Failed to load favorites list", e);
-      }
-    }
-
-    // 2. Fetch Videos
+    const libName = selectedLib ? selectedLib.Name : "收藏";
     try {
+      if (reset) setFavoriteIds(await client.getFavorites(libName));
+
       const {
         items: newVideos,
         nextStartIndex,
         totalCount,
-      } = await client.getVideos(selectedLib ? selectedLib.Id : undefined, libName, feedType, currentServerSkip, PAGE_SIZE, orientationMode);
+      } = await client.getVideos(effectiveParentId, selectedLib, feedType, currentSkip, PAGE_SIZE, orientationMode);
 
-      if (reset) {
-        setVideos(newVideos);
-      } else {
-        setVideos((prev) => [...prev, ...newVideos]);
-      }
-
+      setVideos((prev) => (reset ? newVideos : [...prev, ...newVideos]));
       setServerStartIndex(nextStartIndex);
+      setHasMore(nextStartIndex < totalCount);
 
-      if (nextStartIndex >= totalCount) {
-        setHasMore(false);
-      } else {
-        setHasMore(true);
+      if (reset && effectiveParentId && newVideos.length > 0) {
+        const firstItem = newVideos[0];
+        const type = (firstItem.Type || "").toLowerCase();
+        const isFolder = ["series", "season", "folder", "boxset", "show"].includes(type);
+        if (isFolder && viewMode === "feed") {
+          setViewMode("grid");
+        }
       }
     } catch (e) {
-      console.error("Error fetching videos", e);
       setHasMore(false);
     } finally {
       setLoading(false);
     }
   };
 
-  const refreshContent = () => {
-    loadVideos(true);
+  const handleNavigate = (id: string, title: string) => {
+    setNavStack((prev) => [...prev, { id, title }]);
+    setViewMode("grid");
   };
 
-  const handleLibrarySelect = (lib: EmbyLibrary | null) => {
-    setSelectedLib(lib);
+  const handleGoBack = () => {
+    setNavStack((prev) => prev.slice(0, -1));
   };
 
-  const handleFeedTypeChange = (type: FeedType) => {
-    if (type === feedType) return;
-    setFeedType(type);
-  };
-
-  // Trigger reload if feedType, library, OR orientationMode changes
   useEffect(() => {
-    if (client) {
-      loadVideos(true);
+    if (client) loadVideos(true);
+  }, [navStack, client]);
+
+  useEffect(() => {
+    setNavStack([]);
+    if (selectedLib) {
+      const type = (selectedLib.CollectionType || "").toLowerCase();
+      if (type === "tvshows" || type === "show") setViewMode("grid");
     }
-  }, [feedType, selectedLib, client, orientationMode]);
+    if (navStack.length === 0 && client) loadVideos(true);
+  }, [feedType, selectedLib]);
 
   const handleToggleFavorite = async (itemId: string, isCurrentlyFavorite: boolean) => {
     if (!client) return;
-
-    const nextFavIds = new Set(favoriteIds);
-    if (isCurrentlyFavorite) {
-      nextFavIds.delete(itemId);
-    } else {
-      nextFavIds.add(itemId);
-    }
-    setFavoriteIds(nextFavIds);
-
-    const libName = getCurrentLibraryName(selectedLib);
+    const libName = selectedLib ? selectedLib.Name : "收藏";
     try {
       await client.toggleFavorite(itemId, isCurrentlyFavorite, libName);
-    } catch (e) {
-      console.error("Failed to toggle favorite", e);
-      setFavoriteIds(favoriteIds);
-    }
-  };
-
-  const handleGridSelect = (index: number) => {
-    setCurrentIndex(index);
-    setViewMode("feed");
-  };
-
-  const handleToggleHideLib = (libId: string) => {
-    const newSet = new Set(hiddenLibIds);
-    if (newSet.has(libId)) {
-      newSet.delete(libId);
-    } else {
-      newSet.add(libId);
-    }
-    setHiddenLibIds(newSet);
+      setFavoriteIds((prev) => {
+        const newSet = new Set(prev);
+        if (isCurrentlyFavorite) newSet.delete(itemId);
+        else newSet.add(itemId);
+        return newSet;
+      });
+    } catch (e) {}
   };
 
   const handleLogout = () => {
@@ -237,101 +178,92 @@ function App() {
 
   const toggleFullScreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch((err) => {
-        console.error(`Error attempting to enable fullscreen: ${err.message}`);
-      });
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
     }
   };
 
-  if (!config || !client) {
-    return <Login onLogin={setConfig} />;
-  }
+  if (!config || !client) return <Login onLogin={setConfig} />;
 
   return (
     <div className="relative h-[100dvh] w-full bg-black overflow-hidden font-sans text-white">
-      {/* TOP NAVIGATION BAR - Hidden in Auto Play Mode */}
+      {/* 统一响应式顶部导航栏 */}
       <div
         className={`absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/90 to-transparent flex items-center justify-between px-4 transition-opacity duration-300 ${isAutoPlay ? "opacity-0 pointer-events-none" : "opacity-100"}`}
         style={{
           paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)",
           height: "calc(4rem + env(safe-area-inset-top))",
         }}>
-        <button
-          onClick={() => setIsMenuOpen(true)}
-          className="p-2 text-white/80 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full">
-          <Menu className="w-6 h-6 drop-shadow-md" />
-        </button>
-
-        <div className="flex items-center gap-4 font-bold text-md drop-shadow-md transform translate-x-1">
-          <button
-            onClick={() => handleFeedTypeChange("favorites")}
-            className={`transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-2 ${feedType === "favorites" ? "text-white scale-105" : "text-white/50 hover:text-white/80"}`}>
-            收藏
-          </button>
-          <div className="w-[1px] h-3 bg-white/20"></div>
-          <button
-            onClick={() => handleFeedTypeChange("random")}
-            className={`transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-2 ${feedType === "random" ? "text-white scale-105" : "text-white/50 hover:text-white/80"}`}>
-            随机
-          </button>
-          <div className="w-[1px] h-3 bg-white/20"></div>
-          <button
-            onClick={() => handleFeedTypeChange("latest")}
-            className={`transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-2 ${feedType === "latest" ? "text-white scale-105" : "text-white/50 hover:text-white/80"}`}>
-            最新
-          </button>
+        <div className="min-w-[44px] shrink-0 flex items-center">
+          {navStack.length > 0 ? (
+            <button onClick={handleGoBack} className="p-2 text-white/80 hover:text-white transition-colors">
+              <ChevronLeft className="w-[clamp(20px,5.5vw,24px)] h-[clamp(20px,5.5vw,24px)]" />
+            </button>
+          ) : (
+            <button onClick={() => setIsMenuOpen(true)} className="p-2 text-white/80 hover:text-white transition-colors">
+              <Menu className="w-[clamp(20px,5.5vw,24px)] h-[clamp(20px,5.5vw,24px)]" />
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-1">
-          <button
-            onClick={toggleFullScreen}
-            className="p-2 text-white/80 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full">
-            {isFullscreen ? <Minimize className="w-6 h-6 drop-shadow-md" /> : <Maximize className="w-6 h-6 drop-shadow-md" />}
+        <div className="flex-1 flex justify-center items-center overflow-hidden mx-1">
+          {navStack.length > 0 ? (
+            <h2 className="font-bold truncate whitespace-nowrap animate-in fade-in slide-in-from-top-1 duration-300 text-[clamp(13px,4vw,15px)] max-w-[min(200px,55vw)] text-center">
+              {currentTitle}
+            </h2>
+          ) : (
+            <div className="flex items-center font-bold flex-nowrap whitespace-nowrap gap-[clamp(12px,4.5vw,20px)] text-[clamp(13px,4vw,15.5px)]">
+              {["favorites", "random", "latest"].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setFeedType(t as FeedType)}
+                  className={`transition-all duration-300 relative py-1 ${feedType === t ? "text-white" : "text-white/40 hover:text-white/60"}`}>
+                  {t === "favorites" ? "收藏" : t === "random" ? "随机" : "最新"}
+                  {feedType === t && <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-0.5 shrink-0 justify-end min-w-[90px]">
+          {/* 全屏按钮：移除 hidden sm:block，确保全端显示 */}
+          <button onClick={toggleFullScreen} className="p-2 text-white/80 hover:text-white transition-colors">
+            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
           </button>
-          <button
-            onClick={() => setIsMuted(!isMuted)}
-            className="p-2 text-white/80 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full">
-            {isMuted ? <VolumeX className="w-6 h-6 drop-shadow-md text-red-500" /> : <Volume2 className="w-6 h-6 drop-shadow-md" />}
+          <button onClick={() => setIsMuted(!isMuted)} className="p-2 text-white/80 hover:text-white transition-colors">
+            {isMuted ? <VolumeX className="w-5 h-5 text-red-500" /> : <Volume2 className="w-5 h-5" />}
           </button>
-          <button
-            onClick={() => setViewMode(viewMode === "feed" ? "grid" : "feed")}
-            className="p-2 text-white/80 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full">
-            {viewMode === "feed" ? <LayoutGrid className="w-6 h-6 drop-shadow-md" /> : <Smartphone className="w-6 h-6 drop-shadow-md" />}
+          <button onClick={() => setViewMode(viewMode === "feed" ? "grid" : "feed")} className="p-2 text-white/80 hover:text-white transition-colors">
+            {viewMode === "feed" ? <LayoutGrid className="w-5 h-5" /> : <Smartphone className="w-5 h-5" />}
           </button>
         </div>
       </div>
-
-      {selectedLib && !isAutoPlay && (
-        <div className="absolute top-16 left-0 right-0 z-30 flex justify-center pointer-events-none">
-          <span className="bg-black/30 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] text-white/70 border border-white/10 uppercase tracking-widest">
-            {selectedLib.Name}
-          </span>
-        </div>
-      )}
 
       <div className="w-full h-full bg-black">
         {viewMode === "grid" ? (
           <VideoGrid
             videos={videos}
             client={client}
-            onSelect={handleGridSelect}
             isLoading={loading}
             feedType={feedType}
             hasMore={hasMore}
+            onSelect={(idx) => {
+              setCurrentIndex(idx);
+              setViewMode("feed");
+            }}
             onLoadMore={() => loadVideos(false)}
-            onRefresh={refreshContent}
+            onRefresh={() => loadVideos(true)}
             currentIndex={currentIndex}
+            onNavigate={handleNavigate}
+            currentParentId={currentParentId}
           />
         ) : (
           <VideoFeed
-            key={`${selectedLib?.Id}-${feedType}-${orientationMode}`}
             videos={videos}
             client={client}
-            onRefresh={refreshContent}
+            onRefresh={() => loadVideos(true)}
             isLoading={loading}
             favoriteIds={favoriteIds}
             onToggleFavorite={handleToggleFavorite}
@@ -353,9 +285,15 @@ function App() {
         onClose={() => setIsMenuOpen(false)}
         libraries={libraries}
         selectedId={selectedLib?.Id || null}
-        onSelect={handleLibrarySelect}
+        onSelect={setSelectedLib}
         hiddenLibIds={hiddenLibIds}
-        onToggleHidden={handleToggleHideLib}
+        onToggleHidden={(id) => {
+          const newSet = new Set(hiddenLibIds);
+          if (newSet.has(id)) newSet.delete(id);
+          else newSet.add(id);
+          setHiddenLibIds(newSet);
+          localStorage.setItem("embyHiddenLibs", JSON.stringify(Array.from(newSet)));
+        }}
         onLogout={handleLogout}
         serverUrl={config.url}
         username={config.username}

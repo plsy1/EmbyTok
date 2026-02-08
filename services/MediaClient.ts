@@ -14,7 +14,7 @@ export abstract class MediaClient {
     
     abstract getVideos(
         parentId: string | undefined, 
-        libraryName: string, 
+        library: EmbyLibrary | null, 
         feedType: FeedType, 
         skip: number, 
         limit: number,
