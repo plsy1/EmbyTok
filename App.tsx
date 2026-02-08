@@ -190,7 +190,7 @@ function App() {
     <div className="relative h-[100dvh] w-full bg-black overflow-hidden font-sans text-white">
       {/* 统一响应式顶部导航栏 */}
       <div
-        className={`absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/90 to-transparent flex items-center justify-between px-4 transition-opacity duration-300 ${isAutoPlay ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+        className={`absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/50 via-black/20 to-transparent flex items-center justify-between px-4 transition-opacity duration-300 ${isAutoPlay ? "opacity-0 pointer-events-none" : "opacity-100"}`}
         style={{
           paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)",
           height: "calc(4rem + env(safe-area-inset-top))",

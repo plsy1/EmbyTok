@@ -456,7 +456,7 @@ const VideoCard: React.FC<VideoCardProps> = ({
 
       {/* BOTTOM INFO (Conditional) */}
       {renderUI && (
-          <div className={`absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-all duration-300 pointer-events-auto z-10 ${showInfo ? 'h-2/3 from-black/95' : 'pt-24'}`}>
+          <div className={`absolute bottom-0 left-0 right-0 p-4 transition-all duration-300 pointer-events-auto z-10 ${showInfo ? 'h-2/3 from-black/95' : 'pt-24'}`}>
             <div className="flex flex-col items-start max-w-[80%]">
                 <h3 className="text-white font-bold text-lg drop-shadow-md mb-2 leading-tight">
                   {item.Name}
