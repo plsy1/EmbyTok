@@ -1,0 +1,1 @@
+{"name":"EmbyTok","short_name":"EmbyTok","start_url":"/","display":"standalone","background_color":"#000000","lang":"en","scope":"/","description":"Vertical media client for Emby & Plex","theme_color":"#000000","orientation":"portrait","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
