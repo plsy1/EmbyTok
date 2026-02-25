@@ -80,7 +80,7 @@ function App() {
     if (!client) return;
     try {
       setLibraries(await client.getLibraries());
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const currentParentId = useMemo(() => {
@@ -114,9 +114,16 @@ function App() {
         totalCount,
       } = await client.getVideos(effectiveParentId, selectedLib, feedType, currentSkip, PAGE_SIZE, orientationMode);
 
-      setVideos((prev) => (reset ? newVideos : [...prev, ...newVideos]));
+      setVideos((prev) => {
+        if (reset) return newVideos;
+        // Filtering logic: only add videos that are not already in the list
+        const existingIds = new Set(prev.map(v => v.Id));
+        const filtered = newVideos.filter(v => !existingIds.has(v.Id));
+        return [...prev, ...filtered];
+      });
       setServerStartIndex(nextStartIndex);
-      setHasMore(nextStartIndex < totalCount);
+      // For random feed, we can always try to get more
+      setHasMore(feedType === 'random' ? true : nextStartIndex < totalCount);
 
       if (reset && effectiveParentId && newVideos.length > 0) {
         const firstItem = newVideos[0];
@@ -166,7 +173,7 @@ function App() {
         else newSet.add(itemId);
         return newSet;
       });
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleLogout = () => {
@@ -178,7 +185,7 @@ function App() {
 
   const toggleFullScreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => { });
     } else if (document.exitFullscreen) {
       document.exitFullscreen();
     }
